@@ -45,7 +45,7 @@ def _request(method: str, path: str, *, retries: int = 3, **kwargs) -> dict:
     for attempt in range(1, retries + 1):
         try:
             resp = requests.request(method, url, headers=HEADERS, timeout=30, **kwargs)
-            if resp.status_code in (200, 201, 204):
+            if resp.status_code in (200, 201, 202, 204):
                 return resp.json() if resp.content else {}
             # 4xx → no point retrying
             if 400 <= resp.status_code < 500:
