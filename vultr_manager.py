@@ -84,6 +84,30 @@ def _build_user_data() -> str:
 tailscale up --authkey={TS_AUTH_KEY} --ssh
 cd /root/algo-trading/quant && git pull --ff-only || true
 cd /root/algo-trading && docker-compose up -d
+
+# Create systemd service for quant trading script
+cat > /etc/systemd/system/quant-trading.service << 'UNIT'
+[Unit]
+Description=Quant Trading Script (go.py)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/algo-trading/quant
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/bin/python3 go.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now quant-trading.service
 """
     return base64.b64encode(script.encode()).decode()
 
