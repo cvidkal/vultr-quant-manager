@@ -83,6 +83,7 @@ def _build_user_data() -> str:
     script = f"""#!/bin/bash
 tailscale up --authkey={TS_AUTH_KEY} --ssh
 cd /root/algo-trading/quant && git pull --ff-only || true
+cd /root/algo-trading && docker-compose up -d
 """
     return base64.b64encode(script.encode()).decode()
 
