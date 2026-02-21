@@ -79,14 +79,23 @@ def find_instance() -> dict | None:
 
 
 def _build_user_data() -> str:
-    """Return a Base64-encoded cloud-init shell script that joins Tailscale and pulls latest code on boot."""
+    """Return a Base64-encoded cloud-init shell script that joins Tailscale,
+    pulls latest code, starts IBKR container, and creates a systemd service
+    for the trading script."""
     script = f"""#!/bin/bash
+set -euo pipefail
+
+# 1. Join Tailscale
 tailscale up --authkey={TS_AUTH_KEY} --ssh
+
+# 2. Pull latest trading code
 cd /root/algo-trading/quant && git pull --ff-only || true
+
+# 3. Start IBKR container
 cd /root/algo-trading && docker-compose up -d
 
-# Create systemd service for quant trading script
-cat > /etc/systemd/system/quant-trading.service << 'UNIT'
+# 4. Create systemd service for the trading script
+cat > /etc/systemd/system/quant-trading.service <<'UNIT'
 [Unit]
 Description=Quant Trading Script (go.py)
 After=docker.service
