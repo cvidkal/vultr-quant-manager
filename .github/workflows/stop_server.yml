@@ -2,8 +2,8 @@ name: Stop Quant Server
 
 on:
   schedule:
-    # 16:30 EST = 21:30 UTC  (EDT: 20:30 UTC — adjust May–Nov if needed)
-    - cron: "30 21 * * 1-5"  # Mon–Fri 21:30 UTC
+    # Post-close with buffer: 22:00 UTC → 18:00 EDT / 17:00 EST
+    - cron: "0 22 * * 1-5"    # Mon–Fri 22:00 UTC
   workflow_dispatch:           # allow manual trigger
 
 jobs:

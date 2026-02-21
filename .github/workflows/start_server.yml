@@ -2,8 +2,8 @@ name: Start Quant Server
 
 on:
   schedule:
-    # 09:00 EST = 14:00 UTC (EDT offset: 13:00 UTC — adjust May–Nov if needed)
-    - cron: "0 14 * * 1-5"   # Mon–Fri 14:00 UTC
+    # 08:50 ET (10 min early for boot time). 12:50 UTC covers both EST and EDT.
+    - cron: "50 12 * * 1-5"   # Mon–Fri 12:50 UTC → 08:50 EDT / 07:50 EST
   workflow_dispatch:           # allow manual trigger
 
 jobs:
