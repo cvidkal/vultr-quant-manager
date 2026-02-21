@@ -79,13 +79,29 @@ tailscale up --authkey={TS_AUTH_KEY} --ssh
     return base64.b64encode(script.encode()).decode()
 
 
+def latest_backup_snapshot() -> str | None:
+    """Return the ID of the most recent Quant-Backup-* snapshot, or None."""
+    data = _request("GET", "/snapshots")
+    backups = [
+        s for s in data.get("snapshots", [])
+        if s.get("description", "").startswith("Quant-Backup-") and s.get("status") == "complete"
+    ]
+    if not backups:
+        return None
+    backups.sort(key=lambda s: s["description"], reverse=True)
+    snap = backups[0]
+    log.info("Latest backup snapshot: %s (%s)", snap["id"], snap["description"])
+    return snap["id"]
+
+
 def create_instance() -> dict:
-    """Create a new instance from the base snapshot, attaching the reserved IP."""
-    log.info("Creating instance from snapshot %s in region %s …", SNAPSHOT_ID, REGION)
+    """Create a new instance, preferring the latest daily backup over the base snapshot."""
+    snap_id = latest_backup_snapshot() or SNAPSHOT_ID
+    log.info("Creating instance from snapshot %s in region %s …", snap_id, REGION)
     payload = {
         "region":         REGION,
         "plan":           PLAN,
-        "snapshot_id":    SNAPSHOT_ID,
+        "snapshot_id":    snap_id,
         "label":          LABEL,
         "backups":        "disabled",
         "user_data":      _build_user_data(),  # auto-join Tailscale on first boot
