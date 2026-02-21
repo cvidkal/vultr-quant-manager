@@ -78,9 +78,10 @@ def find_instance() -> dict | None:
 
 
 def _build_user_data() -> str:
-    """Return a Base64-encoded cloud-init shell script that joins Tailscale on boot."""
+    """Return a Base64-encoded cloud-init shell script that joins Tailscale and pulls latest code on boot."""
     script = f"""#!/bin/bash
 tailscale up --authkey={TS_AUTH_KEY} --ssh
+cd /root/algo-trading/quant && git pull --ff-only || true
 """
     return base64.b64encode(script.encode()).decode()
 
