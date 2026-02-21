@@ -30,6 +30,7 @@ PLAN         = os.environ.get("VULTR_PLAN", "vc2-2c-4gb")
 LABEL        = "Quant-Trading-Server"
 TS_AUTH_KEY  = os.environ["TS_AUTH_KEY"]   # Tailscale ephemeral/reusable auth key
 SNAPSHOT_RETAIN_DAYS = int(os.environ.get("VULTR_SNAPSHOT_RETAIN_DAYS", "3"))
+SNAPSHOT_MAX_COUNT   = int(os.environ.get("VULTR_SNAPSHOT_MAX_COUNT", "3"))
 
 BASE_URL = "https://api.vultr.com/v2"
 HEADERS  = {
@@ -82,6 +83,7 @@ def _build_user_data() -> str:
     script = f"""#!/bin/bash
 tailscale up --authkey={TS_AUTH_KEY} --ssh
 cd /root/algo-trading/quant && git pull --ff-only || true
+cd /root/algo-trading && docker-compose up -d
 """
     return base64.b64encode(script.encode()).decode()
 
@@ -172,23 +174,49 @@ def wait_for_snapshot(snap_id: str, timeout: int = 3600) -> None:
     raise SystemExit(1)
 
 
-def prune_old_snapshots(retain: int = SNAPSHOT_RETAIN_DAYS) -> None:
-    """Delete Quant-Backup snapshots older than `retain` days."""
+def prune_old_snapshots(
+    retain_days: int = SNAPSHOT_RETAIN_DAYS,
+    max_count: int = SNAPSHOT_MAX_COUNT,
+) -> None:
+    """Delete Quant-Backup snapshots that are older than `retain_days` OR exceed `max_count`."""
     data = _request("GET", "/snapshots")
     backups = [
         s for s in data.get("snapshots", [])
         if s.get("description", "").startswith("Quant-Backup-")
     ]
-    # Sort by date embedded in description (YYYYMMDD)
-    backups.sort(key=lambda s: s["description"], reverse=True)
-    to_delete = backups[retain:]
-    if not to_delete:
-        log.info("No old snapshots to prune (keeping last %d).", retain)
+    if not backups:
+        log.info("No backup snapshots found.")
         return
-    for snap in to_delete:
-        log.info("Pruning old snapshot %s (%s) …", snap["id"], snap["description"])
-        _request("DELETE", f"/snapshots/{snap['id']}")
-    log.info("Pruned %d old snapshot(s).", len(to_delete))
+
+    # Sort newest first by date embedded in description (YYYYMMDD)
+    backups.sort(key=lambda s: s["description"], reverse=True)
+
+    to_delete = set()
+
+    # Rule 1: delete snapshots older than retain_days (but always keep the newest one)
+    for snap in backups[1:]:  # skip the newest — never delete it
+        date_str = snap["description"].replace("Quant-Backup-", "")
+        try:
+            snap_date = datetime.strptime(date_str, "%Y%m%d")
+            age_days = (datetime.utcnow() - snap_date).days
+            if age_days > retain_days:
+                to_delete.add(snap["id"])
+        except ValueError:
+            pass  # skip snapshots with unexpected description format
+
+    # Rule 2: keep at most max_count snapshots (delete oldest surplus)
+    for snap in backups[max_count:]:
+        to_delete.add(snap["id"])
+
+    if not to_delete:
+        log.info("No old snapshots to prune (retain_days=%d, max_count=%d).", retain_days, max_count)
+        return
+
+    for snap in backups:
+        if snap["id"] in to_delete:
+            log.info("Pruning snapshot %s (%s) …", snap["id"], snap["description"])
+            _request("DELETE", f"/snapshots/{snap['id']}")
+    log.info("Pruned %d snapshot(s).", len(to_delete))
 
 
 # ── High-level actions ────────────────────────────────────────────────────────
