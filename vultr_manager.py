@@ -190,11 +190,10 @@ def prune_old_snapshots(
     # Sort newest first by date embedded in description (YYYYMMDD)
     backups.sort(key=lambda s: s["description"], reverse=True)
 
-    today = datetime.utcnow().strftime("%Y%m%d")
     to_delete = set()
 
-    # Rule 1: delete snapshots older than retain_days
-    for snap in backups:
+    # Rule 1: delete snapshots older than retain_days (but always keep the newest one)
+    for snap in backups[1:]:  # skip the newest — never delete it
         date_str = snap["description"].replace("Quant-Backup-", "")
         try:
             snap_date = datetime.strptime(date_str, "%Y%m%d")
