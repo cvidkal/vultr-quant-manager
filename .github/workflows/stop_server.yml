@@ -1,0 +1,35 @@
+name: Stop Quant Server
+
+on:
+  schedule:
+    # 16:30 EST = 21:30 UTC  (EDT: 20:30 UTC — adjust May–Nov if needed)
+    - cron: "30 21 * * 1-5"  # Mon–Fri 21:30 UTC
+  workflow_dispatch:           # allow manual trigger
+
+jobs:
+  stop:
+    name: Snapshot & Destroy Vultr Instance
+    runs-on: ubuntu-latest
+    timeout-minutes: 90        # snapshot can take a while for large disks
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Stop server (snapshot → verify → destroy → prune)
+        env:
+          VULTR_API_KEY:               ${{ secrets.VULTR_API_KEY }}
+          VULTR_SNAPSHOT_ID:           ${{ secrets.VULTR_SNAPSHOT_ID }}
+          TS_AUTH_KEY:                 ${{ secrets.TS_AUTH_KEY }}
+          VULTR_REGION:                ${{ vars.VULTR_REGION }}
+          VULTR_PLAN:                  ${{ vars.VULTR_PLAN }}
+          VULTR_SNAPSHOT_RETAIN_DAYS:  ${{ vars.VULTR_SNAPSHOT_RETAIN_DAYS }}  # default 3
+        run: python vultr_manager.py stop
