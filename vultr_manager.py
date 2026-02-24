@@ -80,8 +80,8 @@ def find_instance() -> dict | None:
 
 def _build_user_data() -> str:
     """Return a Base64-encoded cloud-init shell script that joins Tailscale,
-    pulls latest code, starts IBKR container, and creates a systemd service
-    for the trading script."""
+    pulls latest code, and starts IBKR container.
+    Systemd services (gateway, quant) are pre-configured in the snapshot."""
     script = f"""#!/bin/bash
 set -euo pipefail
 
@@ -93,30 +93,6 @@ cd /root/algo-trading/quant && git pull --ff-only || true
 
 # 3. Start IBKR container
 cd /root/algo-trading && docker-compose up -d
-
-# 4. Create systemd service for the trading script
-cat > /etc/systemd/system/quant-trading.service <<'UNIT'
-[Unit]
-Description=Quant Trading Script (go.py)
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=simple
-WorkingDirectory=/root/algo-trading/quant
-ExecStartPre=/bin/sleep 10
-ExecStart=/usr/bin/python3 go.py
-Restart=on-failure
-RestartSec=30
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-systemctl daemon-reload
-systemctl enable --now quant-trading.service
 """
     return base64.b64encode(script.encode()).decode()
 
@@ -146,7 +122,7 @@ def create_instance() -> dict:
         "snapshot_id":    snap_id,
         "label":          LABEL,
         "backups":        "disabled",
-        "user_data":      _build_user_data(),  # auto-join Tailscale on first boot
+        "user_data":      _build_user_data(),  # cloud-init: Tailscale, git pull, IBKR
     }
     data = _request("POST", "/instances", json=payload)
     instance = data["instance"]
