@@ -1,0 +1,36 @@
+name: Sync RustDesk Image to Tencent Cloud
+
+# 手动触发
+on:
+  workflow_dispatch:
+
+env:
+  # 替换为你自己在腾讯云 TCR 创建的命名空间
+  NAMESPACE: cc-tech
+  # 腾讯云 TCR 个人版实例地址
+  TCR_REGISTRY: ccr.ccs.tencentyun.com
+
+  # 源镜像（Docker Hub 上的官方镜像）
+  SOURCE_IMAGE: rustdesk/rustdesk-server:latest
+  # 目标镜像（推送到腾讯云的镜像名）
+  TARGET_IMAGE: rustdesk-server:latest
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Login to Tencent Cloud Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.TCR_REGISTRY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
+      - name: 2. Pull official image from Docker Hub
+        run: docker pull ${{ env.SOURCE_IMAGE }}
+
+      - name: 3. Tag image for Tencent Cloud
+        run: docker tag ${{ env.SOURCE_IMAGE }} ${{ env.TCR_REGISTRY }}/${{ env.NAMESPACE }}/${{ env.TARGET_IMAGE }}
+
+      - name: 4. Push image to Tencent Cloud TCR
+        run: docker push ${{ env.TCR_REGISTRY }}/${{ env.NAMESPACE }}/${{ env.TARGET_IMAGE }}
