@@ -122,6 +122,7 @@ def create_instance() -> dict:
         "snapshot_id":    snap_id,
         "label":          LABEL,
         "backups":        "disabled",
+        "enable_ipv6":    True,
         "user_data":      _build_user_data(),  # cloud-init: Tailscale, git pull, IBKR
     }
     data = _request("POST", "/instances", json=payload)
@@ -138,7 +139,7 @@ def _wait_for_instance(instance_id: str, timeout: int = 600) -> dict:
         inst = data["instance"]
         log.info("  Instance status: %s  power: %s", inst["status"], inst["power_status"])
         if inst["status"] == "active" and inst["power_status"] == "running":
-            log.info("Instance is live. Main IP: %s", inst["main_ip"])
+            log.info("Instance is live. Main IP: %s  IPv6: %s", inst["main_ip"], inst.get("v6_main_ip", "N/A"))
             return inst
         time.sleep(20)
     log.error("Instance did not become active within %ds", timeout)
@@ -236,7 +237,7 @@ def action_start() -> None:
         log.info("Instance already running: %s (%s). Nothing to do.", existing["id"], existing["main_ip"])
         return
     inst = create_instance()
-    log.info("Server started successfully. ID=%s  IP=%s", inst["id"], inst["main_ip"])
+    log.info("Server started successfully. ID=%s  IP=%s  IPv6=%s", inst["id"], inst["main_ip"], inst.get("v6_main_ip", "N/A"))
 
 
 def action_stop() -> None:
