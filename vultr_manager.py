@@ -6,6 +6,7 @@ Manages Vultr instance lifecycle for quantitative trading needs.
 
 import base64
 import os
+import subprocess
 import sys
 import time
 import logging
@@ -31,6 +32,10 @@ LABEL        = "Quant-Trading-Server"
 TS_AUTH_KEY  = os.environ["TS_AUTH_KEY"]   # Tailscale ephemeral/reusable auth key
 SNAPSHOT_RETAIN_DAYS = int(os.environ.get("VULTR_SNAPSHOT_RETAIN_DAYS", "3"))
 SNAPSHOT_MAX_COUNT   = int(os.environ.get("VULTR_SNAPSHOT_MAX_COUNT", "3"))
+
+# Log delivery config
+TS_HOSTNAME  = os.environ.get("TS_HOSTNAME", "quant-trading-server")  # Tailscale hostname
+QUANT_DIR    = os.environ.get("QUANT_DIR", "/root/algo-trading/quant")  # path on instance
 
 BASE_URL = "https://api.vultr.com/v2"
 HEADERS  = {
@@ -152,6 +157,38 @@ def destroy_instance(instance_id: str) -> None:
     log.info("Instance %s destroyed.", instance_id)
 
 
+# ── Log delivery ─────────────────────────────────────────────────────────────
+
+def deliver_logs() -> bool:
+    """SSH into the instance via Tailscale and run log_delivery.py.
+
+    Returns True on success, False on failure (non-fatal).
+    Requires GIST_TOKEN to be set on the remote instance.
+    """
+    cmd = [
+        "ssh", "-o", "StrictHostKeyChecking=no",
+        "-o", "ConnectTimeout=10",
+        f"root@{TS_HOSTNAME}",
+        f"cd {QUANT_DIR} && python3 log_delivery.py",
+    ]
+    log.info("Delivering logs via Tailscale SSH (%s) …", TS_HOSTNAME)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode == 0:
+            log.info("Log delivery succeeded:\n%s", result.stdout.strip())
+            return True
+        else:
+            log.warning("Log delivery failed (exit %d):\n%s\n%s",
+                        result.returncode, result.stdout, result.stderr)
+            return False
+    except subprocess.TimeoutExpired:
+        log.warning("Log delivery timed out (60s).")
+        return False
+    except FileNotFoundError:
+        log.warning("SSH not available — skipping log delivery.")
+        return False
+
+
 # ── Snapshot helpers ──────────────────────────────────────────────────────────
 
 def create_snapshot(instance_id: str) -> str:
@@ -248,16 +285,22 @@ def action_stop() -> None:
 
     instance_id = inst["id"]
 
-    # 1. Snapshot
+    # 1. Deliver logs to GitHub Gist (best-effort, non-fatal)
+    try:
+        deliver_logs()
+    except Exception as exc:
+        log.warning("Log delivery failed (non-fatal): %s", exc)
+
+    # 2. Snapshot
     snap_id = create_snapshot(instance_id)
 
-    # 2. Wait for snapshot to complete (critical — never destroy before this)
+    # 3. Wait for snapshot to complete (critical — never destroy before this)
     wait_for_snapshot(snap_id)
 
-    # 3. Destroy instance
+    # 4. Destroy instance
     destroy_instance(instance_id)
 
-    # 4. Prune old snapshots (optional, best-effort)
+    # 5. Prune old snapshots (optional, best-effort)
     try:
         prune_old_snapshots()
     except Exception as exc:
