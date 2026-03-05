@@ -24,7 +24,12 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Stop server (snapshot → verify → destroy → prune)
+      - name: Connect to Tailscale (for SSH log delivery)
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TS_AUTH_KEY }}
+
+      - name: Stop server (logs → snapshot → verify → destroy → prune)
         env:
           VULTR_API_KEY:               ${{ secrets.VULTR_API_KEY }}
           VULTR_SNAPSHOT_ID:           ${{ secrets.VULTR_SNAPSHOT_ID }}
@@ -32,4 +37,6 @@ jobs:
           VULTR_REGION:                ${{ vars.VULTR_REGION }}
           VULTR_PLAN:                  ${{ vars.VULTR_PLAN }}
           VULTR_SNAPSHOT_RETAIN_DAYS:  ${{ vars.VULTR_SNAPSHOT_RETAIN_DAYS }}  # default 3
+          TS_HOSTNAME:                 ${{ vars.TS_HOSTNAME }}
+          QUANT_DIR:                   ${{ vars.QUANT_DIR }}
         run: python vultr_manager.py stop
