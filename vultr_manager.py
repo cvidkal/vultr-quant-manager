@@ -11,7 +11,7 @@ import sys
 import time
 import logging
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 
@@ -193,7 +193,7 @@ def deliver_logs() -> bool:
 
 def create_snapshot(instance_id: str) -> str:
     """Create a daily snapshot and return its ID."""
-    date_str = datetime.utcnow().strftime("%Y%m%d")
+    date_str = datetime.now(tz=timezone.utc).strftime("%Y%m%d")
     desc = f"Quant-Backup-{date_str}"
     log.info("Creating snapshot '%s' for instance %s …", desc, instance_id)
     data = _request("POST", "/snapshots", json={"instance_id": instance_id, "description": desc})
@@ -245,7 +245,7 @@ def prune_old_snapshots(
         date_str = snap["description"].replace("Quant-Backup-", "")
         try:
             snap_date = datetime.strptime(date_str, "%Y%m%d")
-            age_days = (datetime.utcnow() - snap_date).days
+            age_days = (datetime.now(tz=timezone.utc) - snap_date).days
             if age_days > retain_days:
                 to_delete.add(snap["id"])
         except ValueError:
