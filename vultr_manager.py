@@ -169,7 +169,7 @@ def deliver_logs() -> bool:
         "ssh", "-o", "StrictHostKeyChecking=no",
         "-o", "ConnectTimeout=10",
         f"root@{TS_HOSTNAME}",
-        f"cd {QUANT_DIR} && python3 log_delivery.py",
+        f"source ~/.bashrc && cd {QUANT_DIR} && python3 log_delivery.py",
     ]
     log.info("Delivering logs via Tailscale SSH (%s) …", TS_HOSTNAME)
     try:
